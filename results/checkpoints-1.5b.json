@@ -1,0 +1,41 @@
+{
+  "model": "mlx-community/Qwen2.5-1.5B-Instruct-bf16",
+  "n": 200,
+  "rows": [
+    {
+      "step": 200,
+      "accuracy": 0.48,
+      "macro_f1": 0.4375,
+      "invalid": 55,
+      "p50_ms": 872.3
+    },
+    {
+      "step": 400,
+      "accuracy": 0.71,
+      "macro_f1": 0.6382,
+      "invalid": 6,
+      "p50_ms": 853.0
+    },
+    {
+      "step": 600,
+      "accuracy": 0.79,
+      "macro_f1": 0.734,
+      "invalid": 13,
+      "p50_ms": 883.3
+    },
+    {
+      "step": 800,
+      "accuracy": 0.83,
+      "macro_f1": 0.7368,
+      "invalid": 5,
+      "p50_ms": 830.8
+    },
+    {
+      "step": 1000,
+      "accuracy": 0.805,
+      "macro_f1": 0.7362,
+      "invalid": 0,
+      "p50_ms": 878.5
+    }
+  ]
+}

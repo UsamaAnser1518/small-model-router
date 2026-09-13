@@ -6,3 +6,8 @@ results/cache/
 .env
 .DS_Store
 *.egg-info/
+adapters-smoke/
+logs/
+data/mlx/
+adapters/*/0*_adapters.safetensors
+adapters/*/train_command.txt

@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from router.data import Example
-from router.frontier import Prediction
+from router.predictions import Prediction
 
 # USD per million tokens, Anthropic first-party API rates.
 PRICES = {
@@ -95,3 +95,26 @@ def evaluate(examples: list[Example], predictions: list[Prediction], model: str)
         cost_usd=(in_tok * in_price + out_tok * out_price) / 1_000_000,
         confusions=sorted(((g, p, n) for (g, p), n in confusion.items()), key=lambda t: -t[2])[:10],
     )
+
+
+def confidence_buckets(
+    examples: list[Example],
+    predictions: list[Prediction],
+    edges: tuple[float, ...] = (0.0, 0.5, 0.8, 0.95, 1.01),
+) -> list[dict]:
+    """Accuracy within confidence bands, to see whether confidence predicts correctness."""
+    gold = {e.id: e.label for e in examples}
+    rows = []
+    for lo, hi in zip(edges[:-1], edges[1:], strict=True):
+        band = [p for p in predictions if p.confidence is not None and lo <= p.confidence < hi]
+        if not band:
+            continue
+        correct = sum(p.label == gold[p.id] for p in band)
+        rows.append(
+            {
+                "band": f"[{lo:.2f}, {min(hi, 1.0):.2f})",
+                "n": len(band),
+                "accuracy": round(correct / len(band), 3),
+            }
+        )
+    return rows

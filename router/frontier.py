@@ -10,12 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 
 import anthropic
 
 from router.data import Example
+from router.predictions import Prediction
 
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_EFFORT = "low"  # classification does not benefit from deep thinking
@@ -28,16 +29,6 @@ SYSTEM_PROMPT = (
     "label. If two labels seem close, prefer the more specific one.\n\n"
     "Respond only with the JSON object described by the output schema."
 )
-
-
-@dataclass(frozen=True, slots=True)
-class Prediction:
-    id: str
-    label: str
-    latency_ms: float
-    input_tokens: int
-    output_tokens: int
-    cached: bool = False
 
 
 def _cache_key(model: str, effort: str, example_id: str) -> str:

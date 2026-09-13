@@ -25,3 +25,19 @@ Every prediction is cached by `(model, effort, prompt version, example id)`. Re-
 ## 6. Cached predictions are excluded from latency
 
 Latency percentiles are computed only from predictions made live in the current run. Mixing in cache hits would report zero-millisecond calls and make the frontier model look faster than it is.
+
+## 7. Qwen2.5 Instruct in bf16 as the small models, trained with mlx-lm
+
+Two sizes, 1.5B and 3B, so the README can show what the extra parameters buy. The bf16 weights fit comfortably on a 24 GB Apple silicon machine (3 GB and 6 GB), and LoRA on bf16 trains cleaner than QLoRA on 4-bit weights. mlx-lm was chosen over PyTorch plus PEFT because it uses the GPU on Apple silicon out of the box; the trade-off is that training is Mac-only, which is why the training step is a CLI command and the committed adapters are what CI and the serving layer consume.
+
+## 8. The small model is trained as a chat model, and the loss is masked to the label
+
+Each training record is a system prompt, the customer message as the user turn, and the bare label as the assistant turn. `--mask-prompt` makes the loss count only the assistant tokens. The alternative, a classification head on top of the encoder, is more sample-efficient but would make the small model a different kind of system from the frontier model. Keeping both generative means the same prompt, the same output contract, and the same evaluation code apply to both.
+
+## 9. Confidence is the probability of the exact label string
+
+Under greedy decoding the model emits the label token by token; the product of those per-token probabilities is the probability the model assigns to its own answer. It is cheap (no extra forward passes), comes out of the same generation call, and is what the router thresholds on. A more principled alternative, scoring all 77 labels and taking a softmax, costs 77 forward passes per message; it is worth revisiting only if the router's escalation decisions look poorly calibrated.
+
+## 10. An invalid output is a wrong answer, never fuzzy-matched
+
+If the small model emits anything that is not exactly one of the 77 labels, the prediction is recorded as `<invalid>` and scored as wrong. Snapping near-misses to the closest label would flatter the model and hide the failure mode the router most needs to know about.
