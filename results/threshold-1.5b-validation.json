@@ -1,0 +1,80 @@
+{
+  "model": "mlx-community/Qwen2.5-1.5B-Instruct-bf16",
+  "split": "validation",
+  "n": 999,
+  "frontier_accuracy": null,
+  "rows": [
+    {
+      "threshold": 0.5,
+      "kept": 930,
+      "kept_accuracy": 0.8871,
+      "escalated": 69,
+      "escalation_rate": 0.0691,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.6,
+      "kept": 901,
+      "kept_accuracy": 0.8957,
+      "escalated": 98,
+      "escalation_rate": 0.0981,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.7,
+      "kept": 827,
+      "kept_accuracy": 0.9238,
+      "escalated": 172,
+      "escalation_rate": 0.1722,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.8,
+      "kept": 759,
+      "kept_accuracy": 0.9407,
+      "escalated": 240,
+      "escalation_rate": 0.2402,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.85,
+      "kept": 759,
+      "kept_accuracy": 0.9407,
+      "escalated": 240,
+      "escalation_rate": 0.2402,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.9,
+      "kept": 636,
+      "kept_accuracy": 0.9638,
+      "escalated": 363,
+      "escalation_rate": 0.3634,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.95,
+      "kept": 636,
+      "kept_accuracy": 0.9638,
+      "escalated": 363,
+      "escalation_rate": 0.3634,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.98,
+      "kept": 636,
+      "kept_accuracy": 0.9638,
+      "escalated": 363,
+      "escalation_rate": 0.3634,
+      "projected_accuracy": null
+    },
+    {
+      "threshold": 0.99,
+      "kept": 636,
+      "kept_accuracy": 0.9638,
+      "escalated": 363,
+      "escalation_rate": 0.3634,
+      "projected_accuracy": null
+    }
+  ]
+}

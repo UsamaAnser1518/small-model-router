@@ -18,7 +18,9 @@ from router import data as data_mod
 from router import finetune
 from router.evaluate import confidence_buckets, evaluate
 from router.frontier import DEFAULT_EFFORT, DEFAULT_MODEL, FrontierRouter
+from router.predictions import Prediction
 from router.small import SmallRouter
+from router.threshold import DEFAULT_THRESHOLDS, sweep
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 console = Console()
@@ -203,6 +205,91 @@ def checkpoints(
         table.add_row(*(str(v) for v in row.values()))
     console.print(table)
     console.print(f"written to {out}")
+
+
+@app.command()
+def threshold(
+    size: str = "1.5b",
+    split: str = "validation",
+    frontier_accuracy: float | None = typer.Option(
+        None,
+        help="Frontier accuracy on the same split, for the projected column. Defaults to "
+        "results/frontier-<split>.json if that file exists.",
+    ),
+    results_dir: Path = RESULTS_DIR,
+    data_dir: Path = DATA_DIR,
+) -> None:
+    """Sweep escalation thresholds over saved small-model predictions; no model runs."""
+    source = results_dir / f"small-{size}-{split}.json"
+    if not source.exists():
+        raise typer.BadParameter(f"{source} not found; run `router small --size {size}` first")
+    saved = json.loads(source.read_text())
+    predictions = [Prediction(**p) for p in saved["predictions"]]
+    gold = {e.id: e.label for e in data_mod.read_jsonl(data_dir / f"{split}.jsonl")}
+
+    frontier_file = results_dir / f"frontier-{split}.json"
+    if frontier_accuracy is None and frontier_file.exists():
+        frontier_accuracy = json.loads(frontier_file.read_text())["report"]["accuracy"]
+        console.print(
+            f"projecting with frontier accuracy {frontier_accuracy:.4f} from {frontier_file}"
+        )
+
+    rows = sweep(gold, predictions, DEFAULT_THRESHOLDS, frontier_accuracy)
+    out = results_dir / f"threshold-{size}-{split}.json"
+    out.write_text(
+        json.dumps(
+            {
+                "model": saved["model"],
+                "split": split,
+                "n": len(predictions),
+                "frontier_accuracy": frontier_accuracy,
+                "rows": [r.as_row() for r in rows],
+            },
+            indent=2,
+        )
+    )
+    table = Table(title=f"{saved['model']}: escalation threshold sweep on {len(predictions)} rows")
+    for key in rows[0].as_row():
+        table.add_column(key, justify="right")
+    for r in rows:
+        table.add_row(*("" if v is None else str(v) for v in r.as_row().values()))
+    console.print(table)
+    console.print(f"written to {out}")
+
+
+@app.command()
+def serve(
+    size: str = "1.5b",
+    threshold: float = typer.Option(
+        0.95, help="Escalate when small-model confidence is below this."
+    ),
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    frontier_model: str = DEFAULT_MODEL,
+    effort: str = DEFAULT_EFFORT,
+    data_dir: Path = DATA_DIR,
+    adapters_dir: Path = ADAPTERS_DIR,
+    results_dir: Path = RESULTS_DIR,
+) -> None:
+    """Serve the hybrid router over HTTP. POST /route, GET /stats, GET /health."""
+    import uvicorn
+
+    from router.serve import build_router, create_app
+
+    router = build_router(
+        size=size,
+        threshold=threshold,
+        data_dir=data_dir,
+        adapters_dir=adapters_dir,
+        frontier_model=frontier_model,
+        effort=effort,
+        results_dir=results_dir,
+    )
+    console.print(
+        f"serving [bold]{router.small.model_name}[/] + LoRA, escalating to "
+        f"[bold]{frontier_model}[/] below confidence {threshold}"
+    )
+    uvicorn.run(create_app(router), host=host, port=port)
 
 
 def _sample(examples: list[data_mod.Example], limit: int) -> list[data_mod.Example]:

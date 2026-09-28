@@ -16,3 +16,6 @@ class Prediction:
     # Probability the model assigns to its own answer, when the system exposes one.
     # The frontier API does not; the small model does, and the router relies on it.
     confidence: float | None = None
+    # Which system produced the label when the hybrid router is in play: "small" or
+    # "frontier". None for a single-system run.
+    source: str | None = None

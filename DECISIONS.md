@@ -41,3 +41,23 @@ Under greedy decoding the model emits the label token by token; the product of t
 ## 10. An invalid output is a wrong answer, never fuzzy-matched
 
 If the small model emits anything that is not exactly one of the 77 labels, the prediction is recorded as `<invalid>` and scored as wrong. Snapping near-misses to the closest label would flatter the model and hide the failure mode the router most needs to know about.
+
+## 11. Invalid output escalates, whatever its confidence
+
+The small model occasionally emits a string that is not one of the 77 labels, sometimes with high confidence. The router treats that as zero confidence and escalates. The alternative, returning `<invalid>` to the caller or snapping it to the nearest label, would either break the caller's contract or hide the failure (see decision 10).
+
+## 12. The threshold is chosen from saved predictions, not by re-running models
+
+`router threshold` reads `results/small-<size>-validation.json` and sweeps candidate thresholds over it. Every prediction is already on disk with its confidence, so choosing a threshold takes milliseconds and is reproducible from the committed results. Re-running inference per candidate would take minutes per sweep and tempt you to sweep on fewer rows.
+
+## 13. Hybrid latency is the sum; hybrid cost is the frontier's alone
+
+When a request escalates, the caller waited for the small model and then the frontier model, so the recorded latency is both. Token counts come only from the frontier call, because the small model's cost is a fixed machine, not a per-token price. This makes the hybrid row in the benchmark table honest about the tail latency escalation adds.
+
+## 14. One dedicated thread for the small model
+
+FastAPI runs synchronous endpoints in a threadpool, and MLX keeps its default stream per thread, so calling the model from whichever thread the pool hands out fails with "no Stream in current thread". The server loads the model and runs every local prediction on a single dedicated thread, which also serialises GPU access. Frontier calls run on the ordinary threadpool so a slow escalation does not block local answers. The alternative, an `async def` endpoint that runs inference on the event loop thread, works but blocks the loop for the whole call.
+
+## 15. A failed escalation is a 502, not the small model's guess
+
+If the small model is unsure and the frontier call fails, the server refuses rather than returning the guess. Serving a 47 percent-confidence answer with a 200 status would look fine to the caller and be wrong roughly half the time. The threshold exists so that the caller can trust a 200.
