@@ -39,7 +39,9 @@ def test_predict_uses_structured_output_with_label_enum():
     call = messages.calls[0]
     assert call["output_config"]["format"]["schema"]["properties"]["label"]["enum"] == LABELS
     assert call["output_config"]["effort"] == "low"
-    assert "card_arrival" in call["messages"][0]["content"]
+    assert "card_arrival" in call["system"][0]["text"]
+    assert call["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "card_arrival" not in call["messages"][0]["content"]
 
 
 def test_predict_is_cached_on_disk(tmp_path: Path):

@@ -24,7 +24,7 @@ def test_evaluate_report():
     report = evaluate(examples, predictions, "claude-opus-5")
     assert report.n == 4
     assert report.accuracy == 0.75
-    assert report.latency_p50_ms == 200  # cached rows excluded from latency
+    assert report.latency_p50_ms == 300  # cached rows keep their measured latency
     assert report.input_tokens == 40 and report.output_tokens == 20
     assert abs(report.cost_usd - (40 * 5 + 20 * 25) / 1e6) < 1e-9
     assert report.confusions == [("a", "b", 1)]

@@ -22,9 +22,9 @@ Every prediction is cached by `(model, effort, prompt version, example id)`. Re-
 
 `router frontier --limit N` samples the same N rows every time, and every other system will be scored on the same rows. Comparing systems on different subsets is the most common way benchmark tables lie.
 
-## 6. Cached predictions are excluded from latency
+## 6. Cached predictions keep the latency measured when they were made
 
-Latency percentiles are computed only from predictions made live in the current run. Mixing in cache hits would report zero-millisecond calls and make the frontier model look faster than it is.
+Revised on day 4. The cache stores the latency measured on the original live call, so a cache hit is not a zero-millisecond call and there is no reason to drop it. The original rule excluded cached rows, which meant a re-run of a fully cached report showed no latency at all. Latency percentiles now use every row.
 
 ## 7. Qwen2.5 Instruct in bf16 as the small models, trained with mlx-lm
 
@@ -61,3 +61,15 @@ FastAPI runs synchronous endpoints in a threadpool, and MLX keeps its default st
 ## 15. A failed escalation is a 502, not the small model's guess
 
 If the small model is unsure and the frontier call fails, the server refuses rather than returning the guess. Serving a 47 percent-confidence answer with a 200 status would look fine to the caller and be wrong roughly half the time. The threshold exists so that the caller can trust a 200.
+
+## 16. The hybrid benchmark row is composed from saved predictions, not re-run
+
+Every system is scored on the same rows. The small model's predictions decide which rows escalate, and the frontier model's predictions on those same rows supply the escalated answers. Both are real measurements, so the composed row is a measurement, not a projection; it just avoids paying for a second frontier pass and guarantees the hybrid saw exactly the rows the other systems saw. Latency for an escalated row is the sum of the two calls, cost is the frontier's alone (decision 13).
+
+## 17. The label list lives in the cached system prompt
+
+The frontier prompt originally put the 77 labels in the user message, which meant every call paid full price for roughly 500 unchanging tokens. Moving the list into the system prompt puts it behind the cache breakpoint, so repeat calls pay the cache-read rate for it. The prompt version was bumped so no stale cached predictions mix with new ones.
+
+## 18. The benchmark runs without credentials
+
+If the frontier call cannot authenticate, the benchmark still scores the small models and writes the table with the frontier and hybrid rows marked pending. A benchmark that refuses to run without an API key would never get run on a fresh clone.

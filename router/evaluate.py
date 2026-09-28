@@ -76,8 +76,8 @@ def evaluate(examples: list[Example], predictions: list[Prediction], model: str)
         p = by_id[e.id]
         gold.append(e.label)
         pred.append(p.label)
-        if not p.cached:
-            latencies.append(p.latency_ms)
+        # A cached prediction still carries the latency measured when it was made.
+        latencies.append(p.latency_ms)
         if e.label != p.label:
             confusion[(e.label, p.label)] += 1
     correct = sum(g == p for g, p in zip(gold, pred, strict=True))

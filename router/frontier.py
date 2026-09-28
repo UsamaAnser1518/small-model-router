@@ -20,14 +20,15 @@ from router.predictions import Prediction
 
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_EFFORT = "low"  # classification does not benefit from deep thinking
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"  # v2: label list moved into the cached system prompt
 
 SYSTEM_PROMPT = (
     "You route customer-support messages for a retail bank to the team that handles them.\n\n"
     "You will be given one customer message and the full list of routing labels. Pick the "
     "single label that best describes what the customer needs. Every message fits exactly one "
     "label. If two labels seem close, prefer the more specific one.\n\n"
-    "Respond only with the JSON object described by the output schema."
+    "Respond only with the JSON object described by the output schema.\n\n"
+    "Routing labels:\n{labels}"
 )
 
 
@@ -69,9 +70,12 @@ class FrontierRouter:
             "additionalProperties": False,
         }
 
+    @property
+    def system_prompt(self) -> str:
+        return SYSTEM_PROMPT.format(labels="\n".join(f"- {label}" for label in self.labels))
+
     def _user_message(self, text: str) -> str:
-        label_list = "\n".join(f"- {label}" for label in self.labels)
-        return f"Routing labels:\n{label_list}\n\nCustomer message:\n{text}"
+        return f"Customer message:\n{text}"
 
     def _cache_path(self, example_id: str) -> Path | None:
         if self.cache_dir is None:
@@ -91,9 +95,9 @@ class FrontierRouter:
             system=[
                 {
                     "type": "text",
-                    "text": SYSTEM_PROMPT,
-                    # The system prompt and label list never change across calls,
-                    # so cache them; only the customer message varies.
+                    "text": self.system_prompt,
+                    # The instructions and the 77-label list never change across
+                    # calls, so they sit in the cached prefix; only the message varies.
                     "cache_control": {"type": "ephemeral"},
                 }
             ],

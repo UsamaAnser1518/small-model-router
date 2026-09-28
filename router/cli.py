@@ -9,6 +9,7 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
+import anthropic
 import typer
 from rich.console import Console
 from rich.progress import track
@@ -16,6 +17,7 @@ from rich.table import Table
 
 from router import data as data_mod
 from router import finetune
+from router.benchmark import BenchmarkRow, hybrid_row, markdown_table
 from router.evaluate import confidence_buckets, evaluate
 from router.frontier import DEFAULT_EFFORT, DEFAULT_MODEL, FrontierRouter
 from router.predictions import Prediction
@@ -290,6 +292,126 @@ def serve(
         f"[bold]{frontier_model}[/] below confidence {threshold}"
     )
     uvicorn.run(create_app(router), host=host, port=port)
+
+
+@app.command()
+def benchmark(
+    split: str = "test",
+    limit: int = typer.Option(0, help="Rows to score; 0 means the whole split."),
+    threshold: float = 0.95,
+    sizes: str = typer.Option("1.5b,3b", help="Comma-separated small-model sizes."),
+    frontier_model: str = DEFAULT_MODEL,
+    effort: str = DEFAULT_EFFORT,
+    reuse: bool = typer.Option(
+        True, help="Reuse results/small-<size>-<split>.json when it covers the same rows."
+    ),
+    data_dir: Path = DATA_DIR,
+    adapters_dir: Path = ADAPTERS_DIR,
+    results_dir: Path = RESULTS_DIR,
+) -> None:
+    """Score every system on the same rows and write the comparison table.
+
+    Small models run locally for free. The frontier model runs only when credentials
+    exist; otherwise its row and the hybrid rows are marked pending.
+    """
+    examples = _sample(data_mod.read_jsonl(data_dir / f"{split}.jsonl"), limit)
+    labels = json.loads((data_dir / "labels.json").read_text())
+    ids = {e.id for e in examples}
+    results_dir.mkdir(parents=True, exist_ok=True)
+    rows: list[BenchmarkRow] = []
+    pending: list[str] = []
+
+    small_preds: dict[str, list[Prediction]] = {}
+    for size in [s.strip() for s in sizes.split(",") if s.strip()]:
+        saved_path = results_dir / f"small-{size}-{split}.json"
+        preds = _load_predictions(saved_path, ids) if reuse else None
+        if preds is None:
+            router = SmallRouter(labels, finetune.MODELS[size], adapter_path=adapters_dir / size)
+            router.load()
+            preds = [router.predict(e) for e in track(examples, description=f"{size} on {split}")]
+            _save_predictions(saved_path, finetune.MODELS[size], examples, preds, model="local")
+        else:
+            console.print(f"reusing {saved_path}")
+        small_preds[size] = preds
+        rows.append(
+            BenchmarkRow(f"Qwen2.5-{size.upper()} + LoRA", evaluate(examples, preds, model="local"))
+        )
+
+    frontier_preds: list[Prediction] | None = None
+    frontier = FrontierRouter(
+        labels, model=frontier_model, effort=effort, cache_dir=results_dir / "cache"
+    )
+    try:
+        frontier_preds = [
+            frontier.predict(e) for e in track(examples, description=f"{frontier_model}")
+        ]
+    except (anthropic.AnthropicError, TypeError) as exc:
+        console.print(f"[yellow]frontier skipped:[/] {str(exc)[:120]}")
+    frontier_name = f"{frontier_model} (zero-shot, effort={effort})"
+    if frontier_preds is not None:
+        _save_predictions(
+            results_dir / f"frontier-{split}.json", frontier_model, examples, frontier_preds,
+            model=frontier_model, effort=effort,
+        )  # fmt: skip
+        rows.append(BenchmarkRow(frontier_name, evaluate(examples, frontier_preds, frontier_model)))
+        for size, preds in small_preds.items():
+            rows.append(
+                hybrid_row(
+                    f"Hybrid {size.upper()} @ {threshold}",
+                    examples,
+                    preds,
+                    frontier_preds,
+                    threshold,
+                    frontier_model,
+                )  # fmt: skip
+            )
+    else:
+        pending.append(frontier_name)
+        pending.extend(f"Hybrid {size.upper()} @ {threshold}" for size in small_preds)
+
+    table_rows = [r.as_row() for r in rows]
+    md = markdown_table(table_rows, pending)
+    (results_dir / f"benchmark-{split}.md").write_text(md + "\n")
+    (results_dir / f"benchmark-{split}.json").write_text(
+        json.dumps(
+            {
+                "split": split,
+                "n": len(examples),
+                "threshold": threshold,
+                "rows": table_rows,
+                "pending": pending,
+            },
+            indent=2,
+        )  # fmt: skip
+    )
+    console.print(md)
+    console.print(f"written to {results_dir / f'benchmark-{split}.md'}")
+
+
+def _load_predictions(path: Path, ids: set[str]) -> list[Prediction] | None:
+    if not path.exists():
+        return None
+    preds = [Prediction(**p) for p in json.loads(path.read_text())["predictions"]]
+    return preds if {p.id for p in preds} == ids else None
+
+
+def _save_predictions(
+    path: Path, system: str, examples: list[data_mod.Example], preds: list[Prediction], **meta
+) -> None:
+    report = evaluate(examples, preds, model=meta.get("model", "local"))
+    path.write_text(
+        json.dumps(
+            {
+                "model": system,
+                **meta,
+                "report": report.as_row(system),
+                "confusions": report.confusions,
+                "confidence_bands": confidence_buckets(examples, preds),
+                "predictions": [asdict(p) for p in preds],
+            },
+            indent=2,
+        )
+    )
 
 
 def _sample(examples: list[data_mod.Example], limit: int) -> list[data_mod.Example]:

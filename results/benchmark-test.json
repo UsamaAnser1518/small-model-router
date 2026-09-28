@@ -1,0 +1,32 @@
+{
+  "split": "test",
+  "n": 3076,
+  "threshold": 0.95,
+  "rows": [
+    {
+      "system": "Qwen2.5-1.5B + LoRA",
+      "n": 3076,
+      "accuracy": 0.867,
+      "macro_f1": 0.8589,
+      "p50_ms": 205.9,
+      "p95_ms": 265.1,
+      "cost_per_1k_usd": 0.0,
+      "escalation_rate": null
+    },
+    {
+      "system": "Qwen2.5-3B + LoRA",
+      "n": 3076,
+      "accuracy": 0.842,
+      "macro_f1": 0.8357,
+      "p50_ms": 308.4,
+      "p95_ms": 437.1,
+      "cost_per_1k_usd": 0.0,
+      "escalation_rate": null
+    }
+  ],
+  "pending": [
+    "claude-opus-5 (zero-shot, effort=low)",
+    "Hybrid 1.5B @ 0.95",
+    "Hybrid 3B @ 0.95"
+  ]
+}
