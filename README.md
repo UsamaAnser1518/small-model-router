@@ -97,13 +97,13 @@ $ curl -s localhost:8000/route -H 'content-type: application/json' \
 
 $ curl -s localhost:8000/route -H 'content-type: application/json' \
     -d '{"text": "can you tell me about the weather"}'
-{"label":"...","source":"frontier","confidence":0.4724,"threshold":0.95,"latency_ms":1843.2}
+{"label":"<whatever the frontier model answers>","source":"frontier","confidence":0.4724,"threshold":0.95,"latency_ms":1843.2}
 
 $ curl -s localhost:8000/stats
 {"small":1,"frontier":1,"escalation_rate":0.5,"threshold":0.95}
 ```
 
-`source` says which model answered. `confidence` is always the small model's, even when the frontier model answered, so you can see how unsure the local model was. If the small model is unsure and the frontier call fails (no credentials, network down), the server returns 502 rather than serving the low-confidence guess as an answer. The same app is available as `router.serve:app` for uvicorn, configured through `ROUTER_SIZE`, `ROUTER_THRESHOLD`, `ROUTER_FRONTIER_MODEL`, and the `ROUTER_*_DIR` variables.
+The second response is illustrative: the frontier answer and its latency depend on your API credentials. `source` says which model answered. `confidence` is always the small model's, even when the frontier model answered, so you can see how unsure the local model was. If the small model is unsure and the frontier call fails (no credentials, network down), the server returns 502 rather than serving the low-confidence guess as an answer. The same app is available as `router.serve:app` for uvicorn, configured through `ROUTER_SIZE`, `ROUTER_THRESHOLD`, `ROUTER_FRONTIER_MODEL`, and the `ROUTER_*_DIR` variables.
 
 ### Fine-tune the small models (Apple silicon)
 

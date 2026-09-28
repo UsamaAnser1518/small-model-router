@@ -18,7 +18,8 @@ from dataclasses import dataclass, field, replace
 from router.data import Example
 from router.frontier import FrontierRouter
 from router.predictions import Prediction
-from router.small import INVALID_LABEL, SmallRouter
+from router.small import SmallRouter
+from router.threshold import would_escalate
 
 SMALL = "small"
 FRONTIER = "frontier"
@@ -37,9 +38,7 @@ class HybridRouter:
             raise ValueError(f"threshold must be between 0 and 1, got {self.threshold}")
 
     def should_escalate(self, prediction: Prediction) -> bool:
-        if prediction.label == INVALID_LABEL or prediction.confidence is None:
-            return True
-        return prediction.confidence < self.threshold
+        return would_escalate(prediction, self.threshold)
 
     def predict_local(self, example: Example) -> Prediction:
         """The small model's answer, tagged as local. Check `should_escalate` on it."""
